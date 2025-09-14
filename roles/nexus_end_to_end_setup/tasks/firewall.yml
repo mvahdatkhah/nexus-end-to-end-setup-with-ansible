@@ -1,0 +1,31 @@
+---
+- name: Install iptables-persistent
+  apt:
+    name: iptables-persistent
+    state: present
+    update_cache: yes
+  tags: [firewall]
+
+- name: Open firewall ports
+  ansible.builtin.iptables:
+    chain: INPUT
+    protocol: tcp
+    destination_port: "{{ item }}"
+    jump: ACCEPT
+    state: present
+  loop: "{{ firewall_ports }}"
+  tags: [firewall]
+
+- name: Save iptables rules persistently
+  command: iptables-save
+  register: iptables_output
+  tags: [firewall]
+
+- name: Write iptables rules to file
+  copy:
+    dest: /etc/iptables/rules.v4
+    content: "{{ iptables_output.stdout }}"
+    owner: root
+    group: root
+    mode: '0644'
+  tags: [firewall]

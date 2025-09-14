@@ -1,0 +1,25 @@
+nexus_version: "3.83.2-01"
+nexus_arch: "linux-x86_64"
+nexus_archive: "nexus-{{ nexus_version }}-{{ nexus_arch }}.tar.gz"
+nexus_url: "https://download.sonatype.com/nexus/3/{{ nexus_archive }}"
+nexus_install_dir: "/opt/sonatype"
+nexus_symlink: "/opt/sonatype/nexus"
+nexus_user: "nexus"
+nexus_service_file: "/etc/systemd/system/nexus.service"
+
+
+nginx_sites:
+- server_name: "repo.example.com"
+proxy_pass: "http://127.0.0.1:8081"
+- server_name: "registry.example.com"
+proxy_pass: "http://127.0.0.1:8082"
+
+
+nexus_blobstore: "/opt/sonatype/sonatype-work/nexus3/{{ ansible_facts['distribution'] | lower }}-{{ ansible_facts['distribution_release'] }}-blobstore"
+
+
+firewall_ports:
+- 80
+- 443
+- 8081
+- 8082

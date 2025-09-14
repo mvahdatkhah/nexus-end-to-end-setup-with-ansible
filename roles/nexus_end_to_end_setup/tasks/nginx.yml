@@ -1,0 +1,63 @@
+---
+- name: Install Nginx and Certbot
+  apt:
+    name:
+      - nginx
+      - certbot
+      - python3-certbot-nginx
+    state: present
+    update_cache: yes
+  tags: [nginx, ssl]
+
+- name: Ensure Nginx service is started and enabled
+  systemd:
+    name: nginx
+    state: started
+    enabled: yes
+  tags: [nginx]
+
+- name: Configure Nginx reverse proxy sites
+  blockinfile:
+    path: "/etc/nginx/sites-available/{{ item.server_name }}"
+    create: yes
+    block: |
+      server {
+          listen 80;
+          server_name {{ item.server_name }};
+
+          location / {
+              proxy_pass {{ item.proxy_pass }};
+              proxy_set_header Host $host;
+              proxy_set_header X-Real-IP $remote_addr;
+              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              proxy_set_header X-Forwarded-Proto $scheme;
+          }
+      }
+  loop: "{{ nginx_sites }}"
+  tags: [nginx]
+
+- name: Enable Nginx sites
+  file:
+    src: "/etc/nginx/sites-available/{{ item.server_name }}"
+    dest: "/etc/nginx/sites-enabled/{{ item.server_name }}"
+    state: link
+  loop: "{{ nginx_sites }}"
+  tags: [nginx]
+
+- name: Test Nginx configuration
+  command: nginx -t
+  register: nginx_test
+  failed_when: "'successful' not in nginx_test.stderr + nginx_test.stdout"
+  tags: [nginx]
+
+- name: Reload Nginx
+  systemd:
+    name: nginx
+    state: reloaded
+  tags: [nginx]
+
+- name: Obtain SSL certificates with Certbot
+  command: >
+    certbot --nginx -d {{ item.server_name }} --non-interactive --agree-tos --email admin@{{ item.server_name }}
+  loop: "{{ nginx_sites }}"
+  tags: [ssl]

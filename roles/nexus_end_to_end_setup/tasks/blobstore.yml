@@ -1,0 +1,49 @@
+---
+- name: Install LVM tools
+  apt:
+    name: lvm2
+    state: present
+    update_cache: yes
+  tags: [lvm, blobstore]
+
+- name: Create physical volume
+  command: pvcreate "{{ device_name }}"
+  args:
+    creates: "/dev/{{ device_name | basename }}"
+  tags: [lvm, blobstore]
+
+- name: Create volume group
+  command: vgcreate blob_vg "{{ device_name }}"
+  args:
+    creates: "/dev/blob_vg"
+  tags: [lvm, blobstore]
+
+- name: Create logical volume
+  command: lvcreate -l 100%FREE -n blob_lv blob_vg
+  args:
+    creates: "/dev/blob_vg/blob_lv"
+  tags: [lvm, blobstore]
+
+- name: Create ext4 filesystem on logical volume
+  filesystem:
+    fstype: ext4
+    dev: "/dev/blob_vg/blob_lv"
+  tags: [lvm, blobstore]
+
+- name: Create blobstore directory
+  file:
+    path: "{{ nexus_blobstore }}"
+    state: directory
+    owner: "{{ nexus_user }}"
+    group: "{{ nexus_user }}"
+    mode: "0755"
+  tags: [blobstore, nexus]
+
+- name: Mount LVM blobstore and persist in fstab
+  mount:
+    path: "{{ nexus_blobstore }}"
+    src: "/dev/blob_vg/blob_lv"
+    fstype: ext4
+    opts: defaults
+    state: mounted
+  tags: [mount, blobstore]

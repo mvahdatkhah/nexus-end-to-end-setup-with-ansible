@@ -1,0 +1,17 @@
+---
+- name: Reload systemd
+  command: systemctl daemon-reload
+  tags: [service, nexus]
+
+- name: Enable Nexus
+  systemd:
+    name: nexus
+    enabled: yes
+    state: started
+  tags: [service, nexus]
+
+- name: Start Nexus
+  systemd:
+    name: nexus
+    state: started
+  tags: [service, nexus]

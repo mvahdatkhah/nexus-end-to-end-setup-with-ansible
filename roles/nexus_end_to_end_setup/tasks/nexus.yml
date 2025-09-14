@@ -1,0 +1,85 @@
+---
+- name: Ensure required packages are installed
+  apt:
+    name: [tar, wget, xfsprogs, openjdk-11-jre-headless]
+    state: present
+    update_cache: yes
+  tags: [packages, nexus]
+
+- name: Create installation dir
+  file:
+    path: "{{ nexus_install_dir }}"
+    state: directory
+    mode: "0755"
+  tags: [filesystem, nexus]
+
+- name: Download Nexus archive
+  get_url:
+    url: "{{ nexus_url }}"
+    dest: "/tmp/{{ nexus_archive }}"
+    mode: "0644"
+  tags: [download, nexus]
+
+- name: Extract Nexus
+  unarchive:
+    src: "/tmp/{{ nexus_archive }}"
+    dest: "{{ nexus_install_dir }}"
+    remote_src: yes
+    creates: "{{ nexus_install_dir }}/nexus-{{ nexus_version }}"
+  tags: [install, nexus]
+
+- name: Create symlink for nexus
+  file:
+    src: "{{ nexus_install_dir }}/nexus-{{ nexus_version }}"
+    dest: "{{ nexus_symlink }}"
+    state: link
+  tags: [install, nexus]
+
+- name: Create nexus user
+  user:
+    name: "{{ nexus_user }}"
+    system: yes
+    shell: /bin/false
+    create_home: no
+  tags: [user, nexus]
+
+- name: Fix ownership of /opt/sonatype
+  file:
+    path: "{{ nexus_install_dir }}"
+    state: directory
+    recurse: yes
+    owner: "{{ nexus_user }}"
+    group: "{{ nexus_user }}"
+  tags: [permissions, nexus]
+
+- name: Ensure run_as_user is set in nexus script
+  lineinfile:
+    path: "{{ nexus_symlink }}/bin/nexus"
+    regexp: '^#?run_as_user='
+    line: "run_as_user='{{ nexus_user }}'"
+  tags: [config, nexus]
+
+- name: Create systemd service for Nexus
+  copy:
+    dest: "{{ nexus_service_file }}"
+    content: |
+      [Unit]
+      Description=Nexus service
+      After=network.target
+
+      [Service]
+      Type=forking
+      LimitNOFILE=65536
+      ExecStart={{ nexus_symlink }}/bin/nexus start
+      ExecStop={{ nexus_symlink }}/bin/nexus stop
+      User={{ nexus_user }}
+      Restart=on-abort
+      TimeoutSec=600
+
+      [Install]
+      WantedBy=multi-user.target
+  notify:
+    - Reload systemd
+    - Enable Nexus
+    - Start Nexus
+  tags: [service, nexus]
